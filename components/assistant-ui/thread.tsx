@@ -31,18 +31,13 @@ import {
 } from "lucide-react";
 import type { FC } from "react";
 
-export const Thread: FC = () => {
+const ThreadContent: FC = () => {
   return (
-    <ThreadPrimitive.Root
-      className="aui-root aui-thread-root @container flex h-full flex-col bg-background"
-      style={{
-        ["--thread-max-width" as string]: "44rem",
-      }}
+    <ThreadPrimitive.Viewport
+      turnAnchor="top"
+      className="aui-thread-viewport relative flex h-full flex-col overflow-hidden"
     >
-      <ThreadPrimitive.Viewport
-        turnAnchor="top"
-        className="aui-thread-viewport relative flex flex-1 flex-col overflow-x-auto overflow-y-scroll scroll-smooth px-4 pt-4"
-      >
+      <div className="flex-1 overflow-y-auto overflow-x-hidden scroll-smooth px-4 pt-4">
         <AssistantIf condition={({ thread }) => thread.isEmpty}>
           <ThreadWelcome />
         </AssistantIf>
@@ -54,15 +49,30 @@ export const Thread: FC = () => {
             AssistantMessage,
           }}
         />
+      </div>
 
-        <ThreadPrimitive.ViewportFooter className="aui-thread-viewport-footer sticky bottom-0 mx-auto mt-auto flex w-full max-w-(--thread-max-width) flex-col gap-4 overflow-visible rounded-t-3xl bg-background pb-4 md:pb-6">
-          <ThreadScrollToBottom />
-          <Composer />
-        </ThreadPrimitive.ViewportFooter>
-      </ThreadPrimitive.Viewport>
+      <ThreadPrimitive.ViewportFooter className="aui-thread-viewport-footer shrink-0 mx-auto flex w-full max-w-(--thread-max-width) flex-col gap-4 overflow-visible rounded-t-3xl bg-background px-4 pb-4 md:pb-6 pt-4">
+        <ThreadScrollToBottom />
+        <Composer />
+      </ThreadPrimitive.ViewportFooter>
+    </ThreadPrimitive.Viewport>
+  );
+};
+
+export const Thread: FC = () => {
+  return (
+    <ThreadPrimitive.Root
+      className="aui-root aui-thread-root @container flex h-full flex-col bg-background"
+      style={{
+        ["--thread-max-width" as string]: "44rem",
+      }}
+    >
+      <ThreadContent />
     </ThreadPrimitive.Root>
   );
 };
+
+export { ThreadContent };
 
 const ThreadScrollToBottom: FC = () => {
   return (
@@ -80,13 +90,13 @@ const ThreadScrollToBottom: FC = () => {
 
 const ThreadWelcome: FC = () => {
   return (
-    <div className="aui-thread-welcome-root mx-auto my-auto flex w-full max-w-(--thread-max-width) grow flex-col">
-      <div className="aui-thread-welcome-center flex w-full grow flex-col items-center justify-center">
-        <div className="aui-thread-welcome-message flex size-full flex-col justify-center px-4">
-          <h1 className="aui-thread-welcome-message-inner fade-in slide-in-from-bottom-1 animate-in font-semibold text-2xl duration-200">
+    <div className="aui-thread-welcome-root mx-auto flex w-full max-w-(--thread-max-width) min-h-full flex-col justify-center py-8">
+      <div className="aui-thread-welcome-center flex w-full flex-col items-center">
+        <div className="aui-thread-welcome-message flex w-full flex-col items-center px-4 mb-8">
+          <h1 className="aui-thread-welcome-message-inner fade-in slide-in-from-bottom-1 animate-in font-semibold text-2xl duration-200 text-center mb-2">
             Hello there!
           </h1>
-          <p className="aui-thread-welcome-message-inner fade-in slide-in-from-bottom-1 animate-in text-muted-foreground text-xl delay-75 duration-200">
+          <p className="aui-thread-welcome-message-inner fade-in slide-in-from-bottom-1 animate-in text-muted-foreground text-xl delay-75 duration-200 text-center">
             How can I help you today?
           </p>
         </div>
@@ -111,7 +121,7 @@ const SUGGESTIONS = [
 
 const ThreadSuggestions: FC = () => {
   return (
-    <div className="aui-thread-welcome-suggestions grid w-full @md:grid-cols-2 gap-2 pb-4">
+    <div className="aui-thread-welcome-suggestions grid w-full @md:grid-cols-2 gap-2 px-4">
       {SUGGESTIONS.map((suggestion, index) => (
         <div
           key={suggestion.prompt}
