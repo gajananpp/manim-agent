@@ -84,8 +84,8 @@ const tools = [executeCodeTool];
 
 const model = new ChatOpenAI({
 	model: "gpt-5.2",
-	useResponsesApi: true
-});
-
+	useResponsesApi: true,
+	streaming: true, // Enable streaming
+}).bindTools(tools);
 
 export const manimChain = manimPrompt.pipe(model);

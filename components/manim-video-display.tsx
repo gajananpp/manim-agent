@@ -39,7 +39,7 @@ export function ManimVideoDisplay() {
         </div>
       </div>
       {/* Content */}
-      <div className="flex-1 p-4 overflow-hidden flex items-center justify-center bg-gradient-to-br from-slate-950/50 via-slate-900/30 to-slate-950/50 dark:from-slate-950/80 dark:via-slate-900/60 dark:to-slate-950/80 min-h-0">
+      <div className="flex-1 p-4 overflow-hidden flex items-center justify-center bg-linear-to-br from-slate-950/50 via-slate-900/30 to-slate-950/50 dark:from-slate-950/80 dark:via-slate-900/60 dark:to-slate-950/80 min-h-0">
         {videoUrl ? (
           <video
             src={videoUrl}

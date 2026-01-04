@@ -3,13 +3,34 @@
 import { useAssistantState } from "@assistant-ui/react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Code2 } from "lucide-react";
-import { useMemo } from "react";
+import { useMemo, useState, useEffect } from "react";
+import { subscribeToCodeStream, getStreamingCode } from "@/components/thread-wrapper";
 
 export function ManimCodeDisplay() {
   const messages = useAssistantState((state) => state.thread.messages);
+  const [streamingCode, setStreamingCode] = useState<string>("");
+  
+  // Subscribe to code streaming updates
+  useEffect(() => {
+    // Set initial value
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setStreamingCode(getStreamingCode());
+    
+    // Subscribe to updates
+    const unsubscribe = subscribeToCodeStream((code) => {
+      setStreamingCode(code);
+    });
+    
+    return unsubscribe;
+  }, []);
   
   const code = useMemo(() => {
-    // Extract code from the latest tool call in messages
+    // If we have streaming code, use it (it's the most up-to-date)
+    if (streamingCode) {
+      return streamingCode;
+    }
+    
+    // Otherwise, extract code from the latest tool call in messages
     // Find the latest tool call that contains code
     for (let i = messages.length - 1; i >= 0; i--) {
       const message = messages[i];
@@ -39,7 +60,7 @@ export function ManimCodeDisplay() {
     }
     
     return "";
-  }, [messages]);
+  }, [messages, streamingCode]);
 
   return (
     <div className="h-full flex flex-col">
