@@ -5,10 +5,32 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Code2 } from "lucide-react";
 import { useMemo, useState, useEffect } from "react";
 import { subscribeToCodeStream, getStreamingCode } from "@/components/thread-wrapper";
+import { createHighlighter } from "shiki";
+
+type Highlighter = Awaited<ReturnType<typeof createHighlighter>>;
 
 export function ManimCodeDisplay() {
   const messages = useAssistantState((state) => state.thread.messages);
   const [streamingCode, setStreamingCode] = useState<string>("");
+  const [highlighter, setHighlighter] = useState<Highlighter | null>(null);
+  
+  // Initialize Shiki highlighter
+  useEffect(() => {
+    let mounted = true;
+    
+    createHighlighter({
+      themes: ["github-dark"],
+      langs: ["python"],
+    }).then((hl) => {
+      if (mounted) {
+        setHighlighter(hl);
+      }
+    });
+    
+    return () => {
+      mounted = false;
+    };
+  }, []);
   
   // Subscribe to code streaming updates
   useEffect(() => {
@@ -61,6 +83,24 @@ export function ManimCodeDisplay() {
     
     return "";
   }, [messages, streamingCode]);
+  
+  // Highlight code using useMemo
+  const highlightedCode = useMemo(() => {
+    if (!highlighter || !code) {
+      return "";
+    }
+    
+    try {
+      return highlighter.codeToHtml(code, {
+        lang: "python",
+        theme: "github-dark",
+      });
+    } catch (error) {
+      // Fallback to empty string if highlighting fails
+      console.error("Failed to highlight code:", error);
+      return "";
+    }
+  }, [highlighter, code]);
 
   return (
     <div className="h-full flex flex-col">
@@ -75,9 +115,18 @@ export function ManimCodeDisplay() {
       <div className="flex-1 overflow-hidden min-h-0">
         <ScrollArea className="h-full">
           {code ? (
-            <pre className="p-5 text-sm font-mono bg-linear-to-br from-slate-950 via-slate-900 to-slate-950 text-slate-100 leading-relaxed">
-              <code className="text-slate-100">{code}</code>
-            </pre>
+            <div className="p-5 text-sm font-mono leading-relaxed">
+              {highlightedCode ? (
+                <div
+                  dangerouslySetInnerHTML={{ __html: highlightedCode }}
+                  className="[&_pre]:bg-transparent [&_pre]:p-0 [&_pre]:m-0 [&_pre]:font-mono [&_pre]:text-sm [&_pre]:leading-relaxed"
+                />
+              ) : (
+                <pre className="text-slate-100 bg-linear-to-br from-slate-950 via-slate-900 to-slate-950">
+                  <code className="text-slate-100">{code}</code>
+                </pre>
+              )}
+            </div>
           ) : (
             <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-2">
               <Code2 className="h-8 w-8 opacity-30" />

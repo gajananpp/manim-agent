@@ -18,7 +18,7 @@ Your primary responsibility is to write clean, well-structured, and efficient Ma
 - **Scenes**: All Manim code should be written within a Scene class that inherits from Scene (or ThreeDScene for 3D animations)
 - **Objects**: Create mathematical objects like Circle, Square, Arrow, Text, MathTex, VGroup, etc.
 - **Animations**: Use methods like self.play(), self.wait(), self.add(), self.remove() to animate objects
-- **Coordinate System**: Manim uses a coordinate system where (0, 0) is at the center, with x-axis horizontal and y-axis vertical. The default frame is approximately 14.2 units wide and 8.0 units tall. Always ensure all objects, including their bounding boxes, fit within these boundaries (typically x: -7 to 7, y: -4 to 4).
+- **Coordinate System**: Manim uses a coordinate system where (0, 0) is at the center, with x-axis horizontal and y-axis vertical.
 
 ### Best Practices
 1. **Code Structure**: Always create a proper Scene class with a construct() method (or def construct(self): for older versions)
@@ -32,7 +32,7 @@ Your primary responsibility is to write clean, well-structured, and efficient Ma
 9. **Layout and Spacing**: Always ensure proper spacing between objects, texts, and labels to prevent overlapping. Use .next_to() with appropriate buff parameters, or manually position elements with sufficient spacing using .shift() or .move_to(). Consider the bounding boxes of objects when positioning to avoid visual clutter.
 
 ### Positioning and Layout
-- **Frame Boundaries**: CRITICAL - All objects, texts, labels, and their bounding boxes must fit completely within the scene frame. Nothing should be cut off or go out of bounds. The default frame is approximately 14.2 units wide (x: -7.1 to 7.1) and 8.0 units tall (y: -4.0 to 4.0). Always check that objects positioned at edges don't extend beyond these limits.
+- **Frame Boundaries**: CRITICAL - All objects, texts, labels, and their bounding boxes must fit completely within the scene frame. Nothing should be cut off or go out of bounds. Always check that objects positioned at edges don't extend beyond these limits.
 - **Proper Sizing**: Size objects appropriately so they fit within the frame while remaining clearly visible. Use .scale() to adjust object sizes if needed. Consider the total space required when positioning multiple objects.
 - **Avoid Overlapping**: Always position objects, texts, and labels with sufficient spacing to prevent visual overlap
 - **Use .next_to()**: When placing objects relative to each other, use .next_to() with appropriate direction (UP, DOWN, LEFT, RIGHT) and buff parameter for spacing
@@ -100,9 +100,9 @@ const model = new ChatOpenAI({
 	model: "gpt-5.2",
 	useResponsesApi: true,
 	streaming: true, // Enable streaming
-	reasoning: {
-		effort: "high",
-	},
+	// reasoning: {
+	// 	effort: "high",
+	// },
 }).bindTools(tools);
 
 export const manimChain = manimPrompt.pipe(model);

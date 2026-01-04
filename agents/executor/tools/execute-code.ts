@@ -1,10 +1,10 @@
 import { ToolMessage } from "@langchain/core/messages";
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
-import { DockerClient } from "@docker/node-sdk";
+import Docker from "dockerode";
 import { mkdir, writeFile, readdir, access, constants } from "fs/promises";
 import { join } from "path";
-import { Writable } from "stream";
+import { Readable } from "stream";
 
 const toolInputSchema = z.object({
 	code: z.string().describe("The Manim Python code to execute"),
@@ -21,7 +21,8 @@ interface Configurable {
 export const executeCodeTool = tool(
 	async (input, config) => {
 		const { code } = input as { code: string };
-		const docker = await DockerClient.fromDockerConfig();
+		const docker = new Docker();
+		let container: Docker.Container | undefined;
 		let containerId: string | undefined;
 		let workDir: string | undefined;
 
@@ -62,8 +63,13 @@ export const executeCodeTool = tool(
 
 			// Create Docker container with Manim
 			// Using manimcommunity/manim image which has Manim pre-installed
-			const containerResponse = await docker.containerCreate({
+			const containerName = `manim-${executionId}`;
+			console.log("Creating container with name:", containerName);
+			
+			// Create container using dockerode
+			container = await docker.createContainer({
 				Image: "manimcommunity/manim:stable",
+				name: containerName,
 				Cmd: [
 					"manim",
 					"-qh", // preview, quality low, and leave files
@@ -78,10 +84,9 @@ export const executeCodeTool = tool(
 				},
 				WorkingDir: "/manim",
 			});
-			console.log("Starting container", containerResponse);
 
-
-			containerId = containerResponse.Id;
+			containerId = container.id;
+			console.log("Container created successfully:", containerId);
 
 			// Notify container started
 			if (sseStream) {
@@ -96,37 +101,43 @@ export const executeCodeTool = tool(
 			}
 
 			// Start the container
-			await docker.containerStart(containerId);
+			await container.start();
+			console.log("Container started successfully:", containerId);
 
 			// Wait for container to finish
-			const waitResponse = await docker.containerWait(containerId);
+			const waitResponse = await container.wait();
 			const exitCode = waitResponse.StatusCode || 0;
+			console.log("Container finished with exit code:", exitCode);
 
-			// Get logs - containerLogs requires writable streams
-			// Use promise-based approach with async writable streams
-			const stdoutChunks: Buffer[] = [];
-			const stderrChunks: Buffer[] = [];
-
-			const stdoutStream = new Writable({
-				async write(chunk) {
-					stdoutChunks.push(Buffer.from(chunk));
-				},
-			});
-
-			const stderrStream = new Writable({
-				async write(chunk) {
-					stderrChunks.push(Buffer.from(chunk));
-				},
-			});
-
-			await docker.containerLogs(containerId, stdoutStream, stderrStream, {
+			// Get logs - dockerode can return a Buffer or stream
+			const logsResult = container.logs({
 				stdout: true,
 				stderr: true,
+				follow: false,
 			});
 
-			const logOutput = Buffer.concat([...stdoutChunks, ...stderrChunks]).toString(
-				"utf-8",
-			);
+			let logOutput: string;
+			
+			// Check if it's a Promise (resolves to Buffer) or a stream
+			if (logsResult instanceof Promise) {
+				const logBuffer = await logsResult;
+				logOutput = logBuffer.toString("utf-8");
+			} else {
+				// It's a stream
+				const logChunks: Buffer[] = [];
+				await new Promise<void>((resolve, reject) => {
+					(logsResult as Readable).on("data", (chunk: Buffer) => {
+						logChunks.push(chunk);
+					});
+					(logsResult as Readable).on("end", () => {
+						resolve();
+					});
+					(logsResult as Readable).on("error", (err: Error) => {
+						reject(err);
+					});
+				});
+				logOutput = Buffer.concat(logChunks).toString("utf-8");
+			}
 
 			if (exitCode !== 0) {
 				throw new Error(
@@ -213,24 +224,17 @@ export const executeCodeTool = tool(
 			});
 		} finally {
 			// Clean up: stop and remove container
-			if (containerId) {
+			if (container) {
 				try {
 					// Stop the container
-					await docker.containerStop(containerId).catch(() => {
+					await container.stop().catch(() => {
 						// Container might already be stopped
 					});
 					// Remove the container
-					await docker.containerDelete(containerId, { force: true });
+					await container.remove({ force: true });
 				} catch (cleanupError) {
 					console.error("Error cleaning up container:", cleanupError);
 				}
-			}
-
-			// Close Docker client connection
-			try {
-				await docker.close();
-			} catch (closeError) {
-				console.error("Error closing Docker client:", closeError);
 			}
 
 			// Clean up: remove temporary directory (optional - you might want to keep it for debugging)
