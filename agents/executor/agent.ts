@@ -2,8 +2,8 @@ import type { AIMessage, BaseMessage } from "@langchain/core/messages";
 import type { RunnableConfig } from "@langchain/core/runnables";
 import { Annotation, END, START, StateGraph } from "@langchain/langgraph";
 import { ToolNode } from "@langchain/langgraph/prebuilt";
-import { manimChain } from "./chain.js";
-import { executeCodeTool } from "./tools/execute-code.js";
+import { manimChain } from "./chain";
+import { executeCodeTool } from "./tools/execute-code";
 
 const GraphAnnotation = Annotation.Root({
 	messages: Annotation<BaseMessage[]>({

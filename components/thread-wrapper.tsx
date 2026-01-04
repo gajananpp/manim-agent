@@ -64,6 +64,7 @@ const MyModelAdapter: ChatModelAdapter = {
 
     let buffer = "";
     let currentText = "";
+    let messageStarted = false;
     let currentToolCalls: Array<{
       id?: string;
       name?: string;
@@ -84,17 +85,21 @@ const MyModelAdapter: ChatModelAdapter = {
           try {
             const data = JSON.parse(line.slice(6));
             
-            // Handle text deltas
+            // Handle text deltas - accumulate and yield full text
             if (data.type === "text-delta") {
+              // Accumulate the text
               currentText += data.content;
+              // Yield the FULL accumulated text each time
+              // Assistant-ui should update the current message with this content
               yield {
                 content: [
                   {
                     type: "text",
-                    text: currentText,
+                    text: currentText, // Always yield the full accumulated text
                   },
                 ],
               };
+              messageStarted = true;
             }
 
             // Handle tool call arg deltas (for streaming code)
@@ -151,9 +156,21 @@ const MyModelAdapter: ChatModelAdapter = {
             // Handle complete messages
             if (data.type === "message") {
               if (data.role === "assistant") {
-                currentText = data.content || "";
+                // Only update currentText if we haven't been accumulating via deltas
+                // If we have accumulated text from deltas, keep it; otherwise use the message content
+                if (data.content && !messageStarted) {
+                  currentText = data.content;
+                }
+                // If we already have accumulated text, append any additional content
+                else if (data.content && messageStarted && data.content !== currentText) {
+                  // Only append if it's different (might be a complete message after streaming)
+                  if (data.content.length > currentText.length) {
+                    currentText = data.content;
+                  }
+                }
                 currentToolCalls = data.toolCalls || [];
                 
+                // Yield the complete message with accumulated text
                 yield {
                   content: [
                     {
@@ -167,6 +184,7 @@ const MyModelAdapter: ChatModelAdapter = {
                     args: tc.args || {},
                   })),
                 };
+                messageStarted = true;
               } else if (data.role === "tool") {
                 yield {
                   content: [
@@ -187,8 +205,8 @@ const MyModelAdapter: ChatModelAdapter = {
 
             // Handle completion
             if (data.type === "done") {
-              // Finalize any pending content
-              if (currentText) {
+              // Finalize any pending content - ensure we yield the final accumulated text
+              if (currentText && messageStarted) {
                 yield {
                   content: [
                     {

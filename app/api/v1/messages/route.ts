@@ -85,21 +85,55 @@ export async function POST(request: Request) {
             }
           }
 
-          // Stream text content
-          if (message.content && typeof message.content === 'string') {
-            send(JSON.stringify({
-              type: 'text-delta',
-              content: message.content,
-            }), 'text-delta');
+          // Stream text content - handle both string and array formats
+          if (message.content) {
+            if (typeof message.content === 'string') {
+              // Simple string content
+              send(JSON.stringify({
+                type: 'text-delta',
+                content: message.content,
+              }), 'text-delta');
+            } else if (Array.isArray(message.content)) {
+              // Content is an array of content blocks
+              for (const contentBlock of message.content) {
+                if (contentBlock && typeof contentBlock === 'object' && 'type' in contentBlock) {
+                  if (contentBlock.type === 'text' && 'text' in contentBlock && typeof contentBlock.text === 'string') {
+                    // Stream text from content block
+                    send(JSON.stringify({
+                      type: 'text-delta',
+                      content: contentBlock.text,
+                    }), 'text-delta');
+                  }
+                }
+              }
+            }
           }
 
           // Stream complete messages
           if (message.type === 'ai') {
             const aiMessage = message as AIMessage;
+            // Extract text content from array format if needed
+            let textContent = '';
+            if (typeof aiMessage.content === 'string') {
+              textContent = aiMessage.content;
+            } else if (Array.isArray(aiMessage.content)) {
+              textContent = aiMessage.content
+                .filter((block: unknown) => {
+                  return block && typeof block === 'object' && 'type' in block && (block as { type?: string }).type === 'text';
+                })
+                .map((block: unknown) => {
+                  if (block && typeof block === 'object' && 'text' in block && typeof (block as { text?: unknown }).text === 'string') {
+                    return (block as { text: string }).text;
+                  }
+                  return '';
+                })
+                .join('');
+            }
+            
             send(JSON.stringify({
               type: 'message',
               role: 'assistant',
-              content: aiMessage.content,
+              content: textContent,
               toolCalls: aiMessage.tool_calls || [],
             }), 'message');
           } else if (message.type === 'tool') {
@@ -107,7 +141,7 @@ export async function POST(request: Request) {
             send(JSON.stringify({
               type: 'message',
               role: 'tool',
-              content: toolMessage.content,
+              content: typeof toolMessage.content === 'string' ? toolMessage.content : JSON.stringify(toolMessage.content),
               toolCallId: toolMessage.tool_call_id,
             }), 'message');
           }

@@ -66,7 +66,9 @@ export const executeCodeTool = tool(
 				Image: "manimcommunity/manim:stable",
 				Cmd: [
 					"manim",
-					"-pql", // preview, quality low, and leave files
+					"-qh", // preview, quality low, and leave files
+					"--disable_caching",
+					"--flush_cache",
 					codeFileName,
 					sceneClassName,
 				],
@@ -76,6 +78,8 @@ export const executeCodeTool = tool(
 				},
 				WorkingDir: "/manim",
 			});
+			console.log("Starting container", containerResponse);
+
 
 			containerId = containerResponse.Id;
 
