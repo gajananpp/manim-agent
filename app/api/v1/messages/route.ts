@@ -86,14 +86,14 @@ export async function POST(request: Request) {
           }
 
           // Stream text content - handle both string and array formats
-          if (message.content) {
+          if (message.content && isAIMessage) {
             if (typeof message.content === 'string') {
               // Simple string content
               send(JSON.stringify({
                 type: 'text-delta',
                 content: message.content,
               }), 'text-delta');
-            } else if (Array.isArray(message.content)) {
+            } else if (Array.isArray(message.content) && isAIMessage) {
               // Content is an array of content blocks
               for (const contentBlock of message.content) {
                 if (contentBlock && typeof contentBlock === 'object' && 'type' in contentBlock) {

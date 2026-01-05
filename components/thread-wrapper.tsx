@@ -36,8 +36,12 @@ const MyModelAdapter: ChatModelAdapter = {
       };
     });
 
-    // Reset streaming code
+    // Accumulate tool call args for streaming code extraction
+    const accumulatedToolCallArgs: Map<string, string> = new Map();
+
+    // Reset streaming code and accumulated args
     streamingCode = "";
+    accumulatedToolCallArgs.clear();
     streamingCodeCallbacks.forEach((cb) => cb(""));
 
     // Connect to the API route
@@ -104,52 +108,62 @@ const MyModelAdapter: ChatModelAdapter = {
 
             // Handle tool call arg deltas (for streaming code)
             if (data.type === "tool-call-arg-delta" && data.toolName === "execute_code" && data.argName === "code") {
-              // Update streaming code
-              // The value contains the raw JSON chunk, we need to extract the code from the accumulated JSON
-              // Since JSON might be partial, we use a regex to extract the code value as it streams
               try {
-                // The args are JSON being streamed, so we need to extract the code value
-                // Look for "code": "..." pattern, handling partial JSON
-                // Match: "code": " followed by any characters (including escaped) until closing quote or end
-                const argsString = data.value || "";
+                const toolCallId = data.toolCallId || "";
+                const argsChunk = data.value || "";
                 
-                // Try to find the code value in the JSON string
-                // Pattern: "code"\s*:\s*"([^"]*(?:\\.[^"]*)*)"
-                // This matches "code": "value" where value can contain escaped characters
-                const codeMatch = argsString.match(/"code"\s*:\s*"((?:[^"\\]|\\.)*)"?/);
-                if (codeMatch && codeMatch[1]) {
-                  // Decode the code (handle escaped characters)
-                  const code = codeMatch[1]
-                    .replace(/\\n/g, "\n")
-                    .replace(/\\"/g, '"')
-                    .replace(/\\\\/g, "\\")
-                    .replace(/\\t/g, "\t")
-                    .replace(/\\r/g, "\r");
-                  
-                  // Only update if we have meaningful content
-                  if (code.trim().length > 0 || streamingCode.length === 0) {
-                    streamingCode = code;
-                    streamingCodeCallbacks.forEach((cb) => cb(code));
+                // Accumulate the args chunks for this tool call
+                const currentAccumulated = accumulatedToolCallArgs.get(toolCallId) || "";
+                const newAccumulated = currentAccumulated + argsChunk;
+                accumulatedToolCallArgs.set(toolCallId, newAccumulated);
+                
+                // Try to parse the accumulated JSON
+                try {
+                  // The args should be a JSON string like: {"code": "..."}
+                  // Try to parse it
+                  const parsed = JSON.parse(newAccumulated);
+                  if (parsed && typeof parsed === "object" && "code" in parsed && typeof parsed.code === "string") {
+                    streamingCode = parsed.code;
+                    streamingCodeCallbacks.forEach((cb) => cb(parsed.code));
                   }
-                } else {
-                  // If we can't parse yet, try to extract partial code from incomplete JSON
-                  // Look for "code": " and try to extract what we have so far
-                  const partialMatch = argsString.match(/"code"\s*:\s*"([^"]*)/);
-                  if (partialMatch && partialMatch[1]) {
-                    const partialCode = partialMatch[1]
+                } catch {
+                  // JSON is incomplete, try to extract code using regex as fallback
+                  // Look for "code": "..." pattern (handling partial JSON)
+                  const codeMatch = newAccumulated.match(/"code"\s*:\s*"((?:[^"\\]|\\.)*)"?/);
+                  if (codeMatch && codeMatch[1]) {
+                    // Decode escaped characters
+                    const code = codeMatch[1]
                       .replace(/\\n/g, "\n")
                       .replace(/\\"/g, '"')
                       .replace(/\\\\/g, "\\")
                       .replace(/\\t/g, "\t")
                       .replace(/\\r/g, "\r");
                     
-                    // Update with partial code
-                    streamingCode = partialCode;
-                    streamingCodeCallbacks.forEach((cb) => cb(partialCode));
+                    if (code.length > 0) {
+                      streamingCode = code;
+                      streamingCodeCallbacks.forEach((cb) => cb(code));
+                    }
+                  } else {
+                    // Try partial match for incomplete JSON
+                    const partialMatch = newAccumulated.match(/"code"\s*:\s*"((?:[^"\\]|\\.)*)/);
+                    if (partialMatch && partialMatch[1]) {
+                      const partialCode = partialMatch[1]
+                        .replace(/\\n/g, "\n")
+                        .replace(/\\"/g, '"')
+                        .replace(/\\\\/g, "\\")
+                        .replace(/\\t/g, "\t")
+                        .replace(/\\r/g, "\r");
+                      
+                      if (partialCode.length > 0) {
+                        streamingCode = partialCode;
+                        streamingCodeCallbacks.forEach((cb) => cb(partialCode));
+                      }
+                    }
                   }
                 }
-              } catch {
-                // Ignore parsing errors for partial JSON
+              } catch (error) {
+                // Ignore errors for partial JSON
+                console.warn("Error processing tool-call-arg-delta:", error);
               }
             }
 
@@ -186,15 +200,15 @@ const MyModelAdapter: ChatModelAdapter = {
                 };
                 messageStarted = true;
               } else if (data.role === "tool") {
-                yield {
-                  content: [
-                    {
-                      type: "text",
-                      text: data.content || "",
-                    },
-                  ],
-                  toolCallId: data.toolCallId,
-                };
+                // yield {
+                //   content: [
+                //     {
+                //       type: "text",
+                //       text: data.content || "",
+                //     },
+                //   ],
+                //   toolCallId: data.toolCallId,
+                // };
               }
             }
 

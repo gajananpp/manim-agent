@@ -2,10 +2,11 @@
 
 import { useAssistantState } from "@assistant-ui/react";
 import { Video } from "lucide-react";
-import { useMemo } from "react";
+import { useMemo, useRef, useEffect } from "react";
 
 export function ManimVideoDisplay() {
   const messages = useAssistantState((state) => state.thread.messages);
+  const videoRef = useRef<HTMLVideoElement>(null);
   
   const videoUrl = useMemo(() => {
     // Extract video URL from tool messages
@@ -14,11 +15,26 @@ export function ManimVideoDisplay() {
       const message = messages[i];
       
       // Check if it's a tool message with video URL
+      // Tool messages in assistant-ui are identified by having a toolCallId property
+      if ("toolCallId" in message) {
+        if ("content" in message) {
+          const content = (message as { content?: unknown }).content;
+          if (typeof content === "string") {
+            // Look for video URL pattern: /api/videos/...
+            // The pattern is: /api/videos/{executionId}/{filename}
+            const videoUrlMatch = content.match(/\/api\/videos\/[^\s\n\)]+/);
+            if (videoUrlMatch) {
+              return videoUrlMatch[0];
+            }
+          }
+        }
+      }
+      
+      // Also check content property directly (for assistant-ui message format)
       if ("content" in message) {
         const content = (message as { content?: unknown }).content;
         if (typeof content === "string") {
-          // Look for video URL pattern: /api/videos/...
-          const videoUrlMatch = content.match(/\/api\/videos\/[^\s\n]+/);
+          const videoUrlMatch = content.match(/\/api\/videos\/[^\s\n\)]+/);
           if (videoUrlMatch) {
             return videoUrlMatch[0];
           }
@@ -28,6 +44,18 @@ export function ManimVideoDisplay() {
     
     return null;
   }, [messages]);
+  
+  // Autoplay video when URL changes
+  useEffect(() => {
+    if (videoUrl && videoRef.current) {
+      // Reset and play the video
+      videoRef.current.load();
+      videoRef.current.play().catch((error) => {
+        // Autoplay might be blocked by browser, that's okay
+        console.log("Autoplay prevented:", error);
+      });
+    }
+  }, [videoUrl]);
 
   return (
     <div className="h-full flex flex-col">
@@ -42,8 +70,13 @@ export function ManimVideoDisplay() {
       <div className="flex-1 p-4 overflow-hidden flex items-center justify-center bg-linear-to-br from-slate-950/50 via-slate-900/30 to-slate-950/50 dark:from-slate-950/80 dark:via-slate-900/60 dark:to-slate-950/80 min-h-0">
         {videoUrl ? (
           <video
+            ref={videoRef}
             src={videoUrl}
             controls
+            autoPlay
+            loop
+            muted
+            playsInline
             className="max-w-full max-h-full rounded-xl shadow-2xl ring-2 ring-border/20"
             style={{ maxHeight: "calc(100% - 2rem)" }}
           >
