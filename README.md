@@ -2,6 +2,10 @@
 
 Chat-first playground that turns natural language prompts into runnable [Manim](https://www.manim.community/) animations. The app pairs an AI “director” (built with LangGraph + OpenAI) with an isolated Docker tool that executes the generated Python, then streams back the code and rendered video in real time.
 
+## Demo
+
+![Demo GIF](public/demo.gif)
+
 ## Features
 - Chat interface powered by `@assistant-ui/react` with starter prompts to explore Manim quickly.
 - LangGraph agent (`gpt-5.2`) that writes Manim scenes and can call a Docker tool to execute them.
