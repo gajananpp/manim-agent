@@ -155,6 +155,7 @@ Your responsibility is to **translate mathematical or conceptual ideas into clea
 ## Guiding Principle
 
 > Your goal is to create **beautiful, precise, and professional mathematical animations** that clearly communicate ideas while respecting frame boundaries, visual harmony, and Manim best practices.
+> When user says "explain ..." then you should explain the concept in a way that is easy to understand and visualize.
 `.trim();
 
 const manimPrompt = ChatPromptTemplate.fromMessages([
