@@ -73,8 +73,8 @@ export const executeCodeTool = tool(
 				Cmd: [
 					"manim",
 					"-qh", // preview, quality low, and leave files
-					// "--disable_caching",
-					// "--flush_cache",
+					"--disable_caching",
+					"--flush_cache",
 					codeFileName,
 					sceneClassName,
 				],
