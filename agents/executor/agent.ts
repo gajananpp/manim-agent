@@ -3,7 +3,7 @@ import type { RunnableConfig } from "@langchain/core/runnables";
 import { Annotation, END, START, StateGraph } from "@langchain/langgraph";
 import { ToolNode } from "@langchain/langgraph/prebuilt";
 import { manimChain } from "./chain";
-import { executeCodeTool } from "./tools/execute-code";
+import { Configurable, executeCodeTool } from "./tools/execute-code";
 
 const GraphAnnotation = Annotation.Root({
 	messages: Annotation<BaseMessage[]>({
@@ -20,6 +20,21 @@ async function callManimChain(
 	{ messages }: typeof GraphAnnotation.State,
 	config: RunnableConfig,
 ) {
+	// Get configurable from config if available
+	const { sseStream } = config.configurable as Configurable;
+
+	// Notify start
+	if (sseStream) {
+		sseStream.writeSSE({
+			event: "notification",
+			data: JSON.stringify({
+				content: "Thinking...",
+				id: Bun.randomUUIDv7(),
+				status: "started",
+			}),
+		});
+	}
+
 	const response = await manimChain.invoke(
 		{
 			messages: messages,

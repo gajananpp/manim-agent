@@ -10,11 +10,11 @@ const toolInputSchema = z.object({
 	code: z.string().describe("The Manim Python code to execute"),
 });
 
-interface SSEStream {
+export interface SSEStream {
 	writeSSE: (data: { event: string; data: string }) => void;
 }
 
-interface Configurable {
+export interface Configurable {
 	sseStream?: SSEStream;
 }
 

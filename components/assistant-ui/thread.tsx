@@ -108,14 +108,27 @@ const ThreadWelcome: FC = () => {
 
 const SUGGESTIONS = [
   {
-    title: "What's the weather",
-    label: "in San Francisco?",
-    prompt: "What's the weather in San Francisco?",
+    title: "Plot a sine wave",
+    label: "axes + animated graph",
+    prompt:
+      "Create a Manim scene with axes and animate plotting a sine wave over time.",
   },
   {
-    title: "Explain React hooks",
-    label: "like useState and useEffect",
-    prompt: "Explain React hooks like useState and useEffect",
+    title: "Draw a shape",
+    label: "simple circle animation",
+    prompt: "Write Manim code that draws a circle and animates its creation.",
+  },
+  {
+    title: "Pythagoras demo",
+    label: "visualize a^2 + b^2 = c^2",
+    prompt:
+      "Create a Manim scene that animates the Pythagorean theorem with squares on each side of a right triangle.",
+  },
+  {
+    title: "Text + fade",
+    label: "intro title then fade out",
+    prompt:
+      "Make a Manim scene that writes a title text, waits, then fades it out while scaling up slightly.",
   },
 ] as const;
 
