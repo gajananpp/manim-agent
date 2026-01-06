@@ -168,9 +168,9 @@ const model = new ChatOpenAI({
 	model: "gpt-5.2",
 	useResponsesApi: true,
 	streaming: true, // Enable streaming
-	// reasoning: {
-	// 	effort: "high",
-	// },
+	reasoning: {
+		effort: "medium",
+	},
 }).bindTools(tools);
 
 export const manimChain = manimPrompt.pipe(model);

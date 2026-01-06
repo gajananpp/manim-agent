@@ -13,7 +13,7 @@ export function ManimCodeDisplay() {
   const messages = useAssistantState((state) => state.thread.messages);
   const [streamingCode, setStreamingCode] = useState<string>("");
   const [highlighter, setHighlighter] = useState<Highlighter | null>(null);
-  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const scrollAreaRef = useRef<HTMLDivElement | null>(null);
   
   // Initialize Shiki highlighter
   useEffect(() => {
@@ -105,10 +105,14 @@ export function ManimCodeDisplay() {
 
   // Auto-scroll to bottom as code updates
   useEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
+    const root = scrollAreaRef.current;
+    if (!root) return;
 
-    el.scrollTop = el.scrollHeight;
+    // Radix ScrollArea uses a viewport element for actual scrolling
+    const viewport = root.querySelector<HTMLElement>("[data-radix-scroll-area-viewport]");
+    if (!viewport) return;
+
+    viewport.scrollTop = viewport.scrollHeight;
   }, [code, highlightedCode]);
 
   return (
@@ -123,22 +127,21 @@ export function ManimCodeDisplay() {
       {/* Content */}
       <div className="flex-1 overflow-hidden min-h-0">
         {/* Use ScrollArea as a fixed viewport (overflow-hidden), and let the inner wrapper handle scrolling */}
-        <ScrollArea className="h-full w-full min-w-0 overflow-hidden">
+        <ScrollArea
+          ref={scrollAreaRef}
+          className="h-full w-full min-w-0 overflow-hidden"
+        >
           {code ? (
             <div className="h-full w-full text-sm font-mono leading-relaxed min-w-0">
               {highlightedCode ? (
-                <div className="h-full w-full overflow-auto min-w-0 bg-linear-to-br from-slate-950 via-slate-900 to-slate-950">
+                <div className="h-full w-full min-w-0 bg-linear-to-br from-slate-950 via-slate-900 to-slate-950">
                   <div
-                    ref={scrollRef}
                     dangerouslySetInnerHTML={{ __html: highlightedCode }}
                     className="min-w-full [&_pre]:bg-transparent [&_pre]:p-0 [&_pre]:m-0 [&_pre]:font-mono [&_pre]:text-sm [&_pre]:leading-relaxed [&_pre]:whitespace-pre [&_pre]:min-w-full [&_pre]:w-fit [&_pre]:min-h-full"
                   />
                 </div>
               ) : (
-                <div
-                  className="h-full w-full overflow-auto min-w-0 bg-linear-to-br from-slate-950 via-slate-900 to-slate-950"
-                  ref={scrollRef}
-                >
+                <div className="h-full w-full min-w-0 bg-linear-to-br from-slate-950 via-slate-900 to-slate-950">
                   <pre className="text-slate-100 min-w-full w-fit whitespace-pre min-h-full p-0 m-0">
                     <code className="text-slate-100">{code}</code>
                   </pre>
