@@ -55,7 +55,8 @@ Your primary responsibility is to write clean, well-structured, and efficient Ma
 - self.wait(duration) - Wait for specified duration
 - self.bring_to_front(object) - Bring object to front
 
-## Code Quality Standards
+## Code Qual
+ity Standards
 - Write complete, runnable Manim code
 - Include proper class structure and method definitions
 - Add comments for complex mathematical operations or non-obvious logic
@@ -100,9 +101,9 @@ const model = new ChatOpenAI({
 	model: "gpt-5.2",
 	useResponsesApi: true,
 	streaming: true, // Enable streaming
-	// reasoning: {
-	// 	effort: "high",
-	// },
+	reasoning: {
+		effort: "high",
+	},
 }).bindTools(tools);
 
 export const manimChain = manimPrompt.pipe(model);
