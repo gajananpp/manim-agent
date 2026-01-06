@@ -29,6 +29,11 @@ const videoUrlEventSchema = z.object({
   toolCallId: z.string().optional(),
 });
 
+const codeEventSchema = z.object({
+  code: z.string(),
+  toolCallId: z.string().optional(),
+});
+
 const textDeltaEventSchema = z.object({
   type: z.literal("text-delta"),
   content: z.string(),
@@ -176,6 +181,18 @@ const MyModelAdapter: ChatModelAdapter = {
           try {
             const rawData = JSON.parse(line.slice(6));
             
+            // Handle `code` event (server emits best-effort parsed code from tool args stream)
+            if (currentEvent === "code") {
+              const codeResult = codeEventSchema.safeParse(rawData);
+              if (codeResult.success) {
+                streamingCode = codeResult.data.code;
+                streamingCodeCallbacks.forEach((cb) => cb(codeResult.data.code));
+              } else {
+                console.warn("Invalid code event data:", codeResult.error);
+              }
+              continue;
+            }
+
             // Handle video-url event (from SSE event name)
             if (currentEvent === "video-url") {
               const videoUrlResult = videoUrlEventSchema.safeParse(rawData);
@@ -393,14 +410,14 @@ export function ThreadWrapper() {
         </div>
 
         {/* Right Column: Code and Video */}
-        <div className="flex-1 h-full flex flex-col">
+        <div className="flex-1 h-full flex flex-col min-w-0">
           {/* Top Row: Python Code */}
-          <div className="h-1/2 border-b border-border/50 overflow-hidden">
+          <div className="h-1/2 border-b border-border/50 overflow-hidden min-w-0">
             <ManimCodeDisplay />
           </div>
 
           {/* Bottom Row: Manim Video */}
-          <div className="h-1/2 overflow-hidden">
+          <div className="h-1/2 overflow-hidden min-w-0">
             <ManimVideoDisplay />
           </div>
         </div>

@@ -5,7 +5,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Code2 } from "lucide-react";
 import { useMemo, useState, useEffect } from "react";
 import { subscribeToCodeStream, getStreamingCode } from "@/components/thread-wrapper";
-import { createHighlighter } from "shiki";
+import { createHighlighter } from "shiki/bundle/web";
 
 type Highlighter = Awaited<ReturnType<typeof createHighlighter>>;
 
@@ -113,18 +113,23 @@ export function ManimCodeDisplay() {
       </div>
       {/* Content */}
       <div className="flex-1 overflow-hidden min-h-0">
-        <ScrollArea className="h-full">
+        {/* Use ScrollArea as a fixed viewport (overflow-hidden), and let the inner wrapper handle scrolling */}
+        <ScrollArea className="h-full w-full min-w-0 overflow-hidden">
           {code ? (
-            <div className="p-5 text-sm font-mono leading-relaxed">
+            <div className="h-full w-full text-sm font-mono leading-relaxed min-w-0">
               {highlightedCode ? (
-                <div
-                  dangerouslySetInnerHTML={{ __html: highlightedCode }}
-                  className="[&_pre]:bg-transparent [&_pre]:p-0 [&_pre]:m-0 [&_pre]:font-mono [&_pre]:text-sm [&_pre]:leading-relaxed"
-                />
+                <div className="h-full w-full overflow-auto min-w-0 bg-linear-to-br from-slate-950 via-slate-900 to-slate-950">
+                  <div
+                    dangerouslySetInnerHTML={{ __html: highlightedCode }}
+                    className="min-w-full [&_pre]:bg-transparent [&_pre]:p-0 [&_pre]:m-0 [&_pre]:font-mono [&_pre]:text-sm [&_pre]:leading-relaxed [&_pre]:whitespace-pre [&_pre]:min-w-full [&_pre]:w-fit [&_pre]:min-h-full"
+                  />
+                </div>
               ) : (
-                <pre className="text-slate-100 bg-linear-to-br from-slate-950 via-slate-900 to-slate-950">
-                  <code className="text-slate-100">{code}</code>
-                </pre>
+                <div className="h-full w-full overflow-auto min-w-0 bg-linear-to-br from-slate-950 via-slate-900 to-slate-950">
+                  <pre className="text-slate-100 min-w-full w-fit whitespace-pre min-h-full p-0 m-0">
+                    <code className="text-slate-100">{code}</code>
+                  </pre>
+                </div>
               )}
             </div>
           ) : (

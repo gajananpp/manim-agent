@@ -3,6 +3,7 @@ import { manimAgent } from '@/agents/executor/agent';
 import { HumanMessage, AIMessage, ToolMessage } from '@langchain/core/messages';
 import type { BaseMessage } from '@langchain/core/messages';
 import { z } from 'zod';
+import { parse as bestEffortParse } from 'best-effort-json-parser';
 
 // Zod schema for message request body
 const messageSchema = z.object({
@@ -91,6 +92,14 @@ export async function POST(request: Request) {
           },
         );
 
+        // Accumulate tool call args so we can best-effort parse partial JSON and stream `code`
+        // Keyed by toolCallChunk.id when available, otherwise by index.
+        const toolArgsBufferByKey = new Map<string, string>();
+        const lastCodeByKey = new Map<string, string>();
+        // Track tool name/id across chunks (subsequent chunks often have `name`/`id` undefined)
+        const toolNameByIndex = new Map<number, string>();
+        const toolIdByIndex = new Map<number, string>();
+
         for await (const [message] of messageStream) {
           // Handle AI message chunks with tool calls
           // Check if message is an AIMessageChunk or has tool_call_chunks
@@ -100,16 +109,53 @@ export async function POST(request: Request) {
           
           if (hasToolCallChunks && messageWithChunks.tool_call_chunks) {
             for (const toolCallChunk of messageWithChunks.tool_call_chunks) {
+              const chunkIndex = toolCallChunk.index ?? 0;
+              if (toolCallChunk.name) toolNameByIndex.set(chunkIndex, toolCallChunk.name);
+              if (toolCallChunk.id) toolIdByIndex.set(chunkIndex, toolCallChunk.id);
+              const stableToolName = toolNameByIndex.get(chunkIndex);
+              const stableToolCallId =
+                toolIdByIndex.get(chunkIndex) ||
+                toolCallChunk.id ||
+                `index:${chunkIndex}`;
+
               // Stream the code argument as it's being built
-              if (toolCallChunk.name === 'execute_code' && toolCallChunk.args) {
+              if (stableToolName === 'execute_code' && toolCallChunk.args) {
                 // Stream the raw args chunk for code
                 send(JSON.stringify({
                   type: 'tool-call-arg-delta',
-                  toolCallId: toolCallChunk.id || '',
+                  toolCallId: stableToolCallId,
                   toolName: 'execute_code',
                   argName: 'code',
                   value: toolCallChunk.args, // Stream the chunk directly
                 }), 'tool-call-arg-delta');
+
+                // Best-effort parse the growing args JSON to extract `code`, then emit a dedicated SSE event.
+                const key = stableToolCallId;
+                const prev = toolArgsBufferByKey.get(key) || '';
+                const next = prev + toolCallChunk.args;
+                toolArgsBufferByKey.set(key, next);
+
+                try {
+                  const parsed = bestEffortParse(next) as unknown;
+                  if (parsed && typeof parsed === 'object' && 'code' in (parsed as Record<string, unknown>)) {
+                    const maybeCode = (parsed as Record<string, unknown>).code;
+                    if (typeof maybeCode === 'string' && maybeCode.length > 0) {
+                      const last = lastCodeByKey.get(key);
+                      if (last !== maybeCode) {
+                        lastCodeByKey.set(key, maybeCode);
+                        send(
+                          JSON.stringify({
+                            code: maybeCode,
+                            toolCallId: stableToolCallId,
+                          }),
+                          'code',
+                        );
+                      }
+                    }
+                  }
+                } catch {
+                  // best-effort parser shouldn't throw, but ignore if it does
+                }
               }
             }
           }
