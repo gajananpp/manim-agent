@@ -3,7 +3,7 @@
 import { useAssistantState } from "@assistant-ui/react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Code2 } from "lucide-react";
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import { subscribeToCodeStream, getStreamingCode } from "@/components/thread-wrapper";
 import { createHighlighter } from "shiki/bundle/web";
 
@@ -13,6 +13,7 @@ export function ManimCodeDisplay() {
   const messages = useAssistantState((state) => state.thread.messages);
   const [streamingCode, setStreamingCode] = useState<string>("");
   const [highlighter, setHighlighter] = useState<Highlighter | null>(null);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
   
   // Initialize Shiki highlighter
   useEffect(() => {
@@ -102,6 +103,14 @@ export function ManimCodeDisplay() {
     }
   }, [highlighter, code]);
 
+  // Auto-scroll to bottom as code updates
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+
+    el.scrollTop = el.scrollHeight;
+  }, [code, highlightedCode]);
+
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
@@ -120,12 +129,16 @@ export function ManimCodeDisplay() {
               {highlightedCode ? (
                 <div className="h-full w-full overflow-auto min-w-0 bg-linear-to-br from-slate-950 via-slate-900 to-slate-950">
                   <div
+                    ref={scrollRef}
                     dangerouslySetInnerHTML={{ __html: highlightedCode }}
                     className="min-w-full [&_pre]:bg-transparent [&_pre]:p-0 [&_pre]:m-0 [&_pre]:font-mono [&_pre]:text-sm [&_pre]:leading-relaxed [&_pre]:whitespace-pre [&_pre]:min-w-full [&_pre]:w-fit [&_pre]:min-h-full"
                   />
                 </div>
               ) : (
-                <div className="h-full w-full overflow-auto min-w-0 bg-linear-to-br from-slate-950 via-slate-900 to-slate-950">
+                <div
+                  className="h-full w-full overflow-auto min-w-0 bg-linear-to-br from-slate-950 via-slate-900 to-slate-950"
+                  ref={scrollRef}
+                >
                   <pre className="text-slate-100 min-w-full w-fit whitespace-pre min-h-full p-0 m-0">
                     <code className="text-slate-100">{code}</code>
                   </pre>
