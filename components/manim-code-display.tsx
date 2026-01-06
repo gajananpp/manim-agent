@@ -14,6 +14,7 @@ export function ManimCodeDisplay() {
   const [streamingCode, setStreamingCode] = useState<string>("");
   const [highlighter, setHighlighter] = useState<Highlighter | null>(null);
   const scrollAreaRef = useRef<HTMLDivElement | null>(null);
+  const shouldAutoScrollRef = useRef(true);
   
   // Initialize Shiki highlighter
   useEffect(() => {
@@ -103,16 +104,31 @@ export function ManimCodeDisplay() {
     }
   }, [highlighter, code]);
 
-  // Auto-scroll to bottom as code updates
+  // Track whether the user is at (or near) the bottom.
   useEffect(() => {
-    const root = scrollAreaRef.current;
-    if (!root) return;
+    const el = scrollAreaRef.current;
+    if (!el) return;
 
-    // Radix ScrollArea uses a viewport element for actual scrolling
-    const viewport = root.querySelector<HTMLElement>("[data-radix-scroll-area-viewport]");
-    if (!viewport) return;
+    const onScroll = () => {
+      const thresholdPx = 48;
+      const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+      shouldAutoScrollRef.current = distanceFromBottom <= thresholdPx;
+    };
 
-    viewport.scrollTop = viewport.scrollHeight;
+    el.addEventListener("scroll", onScroll, { passive: true });
+    onScroll();
+    return () => el.removeEventListener("scroll", onScroll);
+  }, []);
+
+  // Auto-scroll to bottom as code updates (only if user hasn't scrolled up)
+  useEffect(() => {
+    const el = scrollAreaRef.current;
+    if (!el) return;
+    if (!shouldAutoScrollRef.current) return;
+
+    requestAnimationFrame(() => {
+      el.scrollTop = el.scrollHeight;
+    });
   }, [code, highlightedCode]);
 
   return (
@@ -129,7 +145,7 @@ export function ManimCodeDisplay() {
         {/* Use ScrollArea as a fixed viewport (overflow-hidden), and let the inner wrapper handle scrolling */}
         <ScrollArea
           ref={scrollAreaRef}
-          className="h-full w-full min-w-0 overflow-hidden"
+          className="h-full w-full min-w-0"
         >
           {code ? (
             <div className="h-full w-full text-sm font-mono leading-relaxed min-w-0">

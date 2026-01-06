@@ -111,7 +111,7 @@ const SUGGESTIONS = [
     title: "Plot a sine wave",
     label: "axes + animated graph",
     prompt:
-      "Create a Manim scene with axes and animate plotting a sine wave over time.",
+      "Create a Manim scene with axes and animate plotting a sine wave over 5 seconds.",
   },
   {
     title: "Draw a shape",
