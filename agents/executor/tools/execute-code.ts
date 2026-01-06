@@ -179,11 +179,20 @@ export const executeCodeTool = tool(
 				);
 			}
 
-			// For now, return the local file path
-			// In production, you'd want to upload this to a CDN/storage service
-			// and return a public URL
+			// Generate the video URL path
 			const videoFileName = videoPath.split("/").pop() || "output.mp4";
 			const videoUrl = `/api/videos/${executionId}/${videoFileName}`;
+
+			// Send video URL via SSE
+			if (sseStream) {
+				sseStream.writeSSE({
+					event: "video-url",
+					data: JSON.stringify({
+						url: videoUrl,
+						toolCallId: config.toolCall.id,
+					}),
+				});
+			}
 
 			// Notify completion
 			if (sseStream) {
@@ -197,8 +206,9 @@ export const executeCodeTool = tool(
 				});
 			}
 
+			// Return only the video URL path
 			return new ToolMessage({
-				content: `Manim code executed successfully. Video URL: ${videoUrl}\n\nLogs:\n${logOutput}`,
+				content: videoUrl,
 				tool_call_id: config.toolCall.id,
 			});
 		} catch (error) {

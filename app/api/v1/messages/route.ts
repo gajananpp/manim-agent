@@ -2,19 +2,48 @@ import { NextResponse } from 'next/server';
 import { manimAgent } from '@/agents/executor/agent';
 import { HumanMessage, AIMessage, ToolMessage } from '@langchain/core/messages';
 import type { BaseMessage } from '@langchain/core/messages';
+import { z } from 'zod';
+
+// Zod schema for message request body
+const messageSchema = z.object({
+  role: z.enum(['user', 'assistant', 'tool']),
+  content: z.string(),
+  tool_call_id: z.string().optional(),
+});
+
+const messagesRequestSchema = z.object({
+  messages: z.array(messageSchema).optional().default([]),
+});
 
 export async function GET() {
   return NextResponse.json({ message: 'Hello from API!' });
 }
 
 export async function POST(request: Request) {
-  // Get request body
-  let body: { messages?: Array<{ role: string; content: string }> } = {};
+  // Get and validate request body
+  let body: unknown;
   try {
     body = await request.json();
   } catch {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
   }
+
+  // Validate request body using Zod
+  const validationResult = messagesRequestSchema.safeParse(body);
+  
+  if (!validationResult.success) {
+    const errorTree = z.treeifyError(validationResult.error);
+    console.error('Invalid request body:', errorTree);
+    return NextResponse.json(
+      {
+        error: 'Invalid request body',
+        details: errorTree,
+      },
+      { status: 400 }
+    );
+  }
+
+  const validatedBody = validationResult.data;
 
   // Create a readable stream for SSE
   const stream = new ReadableStream({
@@ -32,8 +61,8 @@ export async function POST(request: Request) {
       };
 
       try {
-        // Convert messages to LangChain format
-        const messages: BaseMessage[] = (body.messages || []).map((msg: { role: string; content: string; tool_call_id?: string }) => {
+        // Convert validated messages to LangChain format
+        const messages: BaseMessage[] = validatedBody.messages.map((msg) => {
           if (msg.role === 'user') {
             return new HumanMessage(msg.content);
           } else if (msg.role === 'assistant') {
@@ -138,6 +167,8 @@ export async function POST(request: Request) {
             }), 'message');
           } else if (message.type === 'tool') {
             const toolMessage = message as ToolMessage;
+            // Tool messages are already handled via SSE events from the tool itself
+            // We still send the message for assistant-ui compatibility
             send(JSON.stringify({
               type: 'message',
               role: 'tool',

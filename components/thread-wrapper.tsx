@@ -11,10 +11,73 @@ import { ManimCodeDisplay } from "@/components/manim-code-display";
 import { ManimVideoDisplay } from "@/components/manim-video-display";
 import { Button } from "@/components/ui/button";
 import { Star } from "lucide-react";
+import { z } from "zod";
+
+// Zod schemas for SSE event data
+const videoUrlEventSchema = z.object({
+  url: z.string().refine(
+    (val) => {
+      try {
+        new URL(val);
+        return true;
+      } catch {
+        return val.startsWith("/");
+      }
+    },
+    { message: "URL must be a valid URL or start with /" }
+  ),
+  toolCallId: z.string().optional(),
+});
+
+const textDeltaEventSchema = z.object({
+  type: z.literal("text-delta"),
+  content: z.string(),
+});
+
+const toolCallArgDeltaEventSchema = z.object({
+  type: z.literal("tool-call-arg-delta"),
+  toolCallId: z.string(),
+  toolName: z.string(),
+  argName: z.string(),
+  value: z.string(),
+});
+
+const messageEventSchema = z.object({
+  type: z.literal("message"),
+  role: z.enum(["assistant", "tool"]),
+  content: z.string().optional(),
+  toolCalls: z.array(z.any()).optional(),
+  toolCallId: z.string().optional(),
+});
+
+const toolCallArgsSchema = z.object({
+  code: z.string(),
+});
+
+const doneEventSchema = z.object({
+  type: z.literal("done"),
+  message: z.string().optional(),
+});
+
+const errorEventSchema = z.object({
+  type: z.literal("error"),
+  error: z.string(),
+});
+
+const notificationEventSchema = z.object({
+  type: z.literal("notification"),
+  content: z.string().optional(),
+  id: z.string().optional(),
+  status: z.string().optional(),
+});
 
 // Global state to track streaming code for the code display component
 let streamingCode: string = "";
 const streamingCodeCallbacks: Set<(code: string) => void> = new Set();
+
+// Global state to track video URL
+let videoUrl: string | null = null;
+const videoUrlCallbacks: Set<(url: string | null) => void> = new Set();
 
 export const subscribeToCodeStream = (callback: (code: string) => void) => {
   streamingCodeCallbacks.add(callback);
@@ -24,6 +87,15 @@ export const subscribeToCodeStream = (callback: (code: string) => void) => {
 };
 
 export const getStreamingCode = () => streamingCode;
+
+export const subscribeToVideoUrl = (callback: (url: string | null) => void) => {
+  videoUrlCallbacks.add(callback);
+  return () => {
+    videoUrlCallbacks.delete(callback);
+  };
+};
+
+export const getVideoUrl = () => videoUrl;
 
 const MyModelAdapter: ChatModelAdapter = {
   async *run({ messages, abortSignal }) {
@@ -39,10 +111,12 @@ const MyModelAdapter: ChatModelAdapter = {
     // Accumulate tool call args for streaming code extraction
     const accumulatedToolCallArgs: Map<string, string> = new Map();
 
-    // Reset streaming code and accumulated args
+    // Reset streaming code, video URL, and accumulated args
     streamingCode = "";
+    videoUrl = null;
     accumulatedToolCallArgs.clear();
     streamingCodeCallbacks.forEach((cb) => cb(""));
+    videoUrlCallbacks.forEach((cb) => cb(null));
 
     // Connect to the API route
     const response = await fetch("/api/v1/messages?agent=manim", {
@@ -74,6 +148,7 @@ const MyModelAdapter: ChatModelAdapter = {
       name?: string;
       args?: Record<string, unknown>;
     }> = [];
+    let currentEvent: string | undefined;
 
     while (true) {
       const { done, value } = await reader.read();
@@ -85,12 +160,38 @@ const MyModelAdapter: ChatModelAdapter = {
       buffer = lines.pop() || "";
 
       for (const line of lines) {
+        // Track event name
+        if (line.startsWith("event: ")) {
+          currentEvent = line.slice(7).trim();
+          continue;
+        }
+        
+        // Empty line resets event tracking (SSE format: event + data + empty line)
+        if (line.trim() === "") {
+          currentEvent = undefined;
+          continue;
+        }
+        
         if (line.startsWith("data: ")) {
           try {
-            const data = JSON.parse(line.slice(6));
+            const rawData = JSON.parse(line.slice(6));
+            
+            // Handle video-url event (from SSE event name)
+            if (currentEvent === "video-url") {
+              const videoUrlResult = videoUrlEventSchema.safeParse(rawData);
+              if (videoUrlResult.success) {
+                videoUrl = videoUrlResult.data.url;
+                videoUrlCallbacks.forEach((cb) => cb(videoUrlResult.data.url));
+              } else {
+                console.warn("Invalid video-url event data:", videoUrlResult.error);
+              }
+              continue;
+            }
             
             // Handle text deltas - accumulate and yield full text
-            if (data.type === "text-delta") {
+            const textDeltaResult = textDeltaEventSchema.safeParse(rawData);
+            if (textDeltaResult.success) {
+              const data = textDeltaResult.data;
               // Accumulate the text
               currentText += data.content;
               // Yield the FULL accumulated text each time
@@ -107,24 +208,26 @@ const MyModelAdapter: ChatModelAdapter = {
             }
 
             // Handle tool call arg deltas (for streaming code)
-            if (data.type === "tool-call-arg-delta" && data.toolName === "execute_code" && data.argName === "code") {
+            const toolCallArgDeltaResult = toolCallArgDeltaEventSchema.safeParse(rawData);
+            if (toolCallArgDeltaResult.success && toolCallArgDeltaResult.data.toolName === "execute_code" && toolCallArgDeltaResult.data.argName === "code") {
               try {
-                const toolCallId = data.toolCallId || "";
-                const argsChunk = data.value || "";
+                const data = toolCallArgDeltaResult.data;
+                const toolCallId = data.toolCallId;
+                const argsChunk = data.value;
                 
                 // Accumulate the args chunks for this tool call
                 const currentAccumulated = accumulatedToolCallArgs.get(toolCallId) || "";
                 const newAccumulated = currentAccumulated + argsChunk;
                 accumulatedToolCallArgs.set(toolCallId, newAccumulated);
                 
-                // Try to parse the accumulated JSON
+                // Try to parse the accumulated JSON using Zod
                 try {
                   // The args should be a JSON string like: {"code": "..."}
-                  // Try to parse it
                   const parsed = JSON.parse(newAccumulated);
-                  if (parsed && typeof parsed === "object" && "code" in parsed && typeof parsed.code === "string") {
-                    streamingCode = parsed.code;
-                    streamingCodeCallbacks.forEach((cb) => cb(parsed.code));
+                  const toolCallArgsResult = toolCallArgsSchema.safeParse(parsed);
+                  if (toolCallArgsResult.success) {
+                    streamingCode = toolCallArgsResult.data.code;
+                    streamingCodeCallbacks.forEach((cb) => cb(toolCallArgsResult.data.code));
                   }
                 } catch {
                   // JSON is incomplete, try to extract code using regex as fallback
@@ -168,7 +271,9 @@ const MyModelAdapter: ChatModelAdapter = {
             }
 
             // Handle complete messages
-            if (data.type === "message") {
+            const messageResult = messageEventSchema.safeParse(rawData);
+            if (messageResult.success) {
+              const data = messageResult.data;
               if (data.role === "assistant") {
                 // Only update currentText if we haven't been accumulating via deltas
                 // If we have accumulated text from deltas, keep it; otherwise use the message content
@@ -200,25 +305,29 @@ const MyModelAdapter: ChatModelAdapter = {
                 };
                 messageStarted = true;
               } else if (data.role === "tool") {
-                // yield {
-                //   content: [
-                //     {
-                //       type: "text",
-                //       text: data.content || "",
-                //     },
-                //   ],
-                //   toolCallId: data.toolCallId,
-                // };
+                // Yield tool messages so they're available in the message history
+                // This allows components like ManimVideoDisplay to extract video URLs
+                yield {
+                  content: [
+                    {
+                      type: "text",
+                      text: data.content || "",
+                    },
+                  ],
+                  toolCallId: data.toolCallId,
+                };
               }
             }
 
             // Handle notifications
-            if (data.type === "notification") {
+            const notificationResult = notificationEventSchema.safeParse(rawData);
+            if (notificationResult.success) {
               // Could emit custom events here if needed
             }
 
             // Handle completion
-            if (data.type === "done") {
+            const doneResult = doneEventSchema.safeParse(rawData);
+            if (doneResult.success) {
               // Finalize any pending content - ensure we yield the final accumulated text
               if (currentText && messageStarted) {
                 yield {
@@ -233,8 +342,9 @@ const MyModelAdapter: ChatModelAdapter = {
             }
 
             // Handle errors
-            if (data.type === "error") {
-              throw new Error(data.error || "Unknown error");
+            const errorResult = errorEventSchema.safeParse(rawData);
+            if (errorResult.success) {
+              throw new Error(errorResult.data.error || "Unknown error");
             }
           } catch (e) {
             // Ignore JSON parse errors for incomplete data
