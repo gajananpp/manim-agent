@@ -13,6 +13,7 @@ import { type FC, memo, useState } from "react";
 import { CheckIcon, CopyIcon } from "lucide-react";
 
 import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button";
+import { AnimatedShinyText } from "@/components/ui/animated-shiny-text";
 import { cn } from "@/lib/utils";
 
 const MarkdownTextImpl = () => {
@@ -121,15 +122,45 @@ const defaultComponents = memoizeMarkdownComponents({
       {...props}
     />
   ),
-  p: ({ className, ...props }) => (
-    <p
-      className={cn(
-        "aui-md-p mt-5 mb-5 leading-7 first:mt-0 last:mb-0",
-        className,
-      )}
-      {...props}
-    />
-  ),
+  p: ({ className, children, ...props }) => {
+    // Render `[[shiny]]...` lines as AnimatedShinyText (ChatGPT-like "Thinking..." status)
+    const marker = "[[shiny]]";
+    const onlyChild =
+      typeof children === "string"
+        ? children
+        : Array.isArray(children) && children.length === 1 && typeof children[0] === "string"
+          ? children[0]
+          : null;
+
+    if (onlyChild && onlyChild.startsWith(marker)) {
+      const text = onlyChild.slice(marker.length).trim();
+      return (
+        <p
+          className={cn(
+            "aui-md-p mt-5 mb-5 leading-7 first:mt-0 last:mb-0",
+            className,
+          )}
+          {...props}
+        >
+          <AnimatedShinyText className="mx-0 inline-block">
+            {text.length ? text : "Thinking…"}
+          </AnimatedShinyText>
+        </p>
+      );
+    }
+
+    return (
+      <p
+        className={cn(
+          "aui-md-p mt-5 mb-5 leading-7 first:mt-0 last:mb-0",
+          className,
+        )}
+        {...props}
+      >
+        {children}
+      </p>
+    );
+  },
   a: ({ className, ...props }) => (
     <a
       className={cn(

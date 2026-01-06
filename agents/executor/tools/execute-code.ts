@@ -181,7 +181,7 @@ export const executeCodeTool = tool(
 
 			// Generate the video URL path
 			const videoFileName = videoPath.split("/").pop() || "output.mp4";
-			const videoUrl = `/api/videos/${executionId}/${videoFileName}`;
+			const videoUrl = `${process.env.NEXT_PUBLIC_APP_URL}/api/videos/${executionId}/${videoFileName}`;
 
 			// Send video URL via SSE
 			if (sseStream) {
@@ -221,7 +221,7 @@ export const executeCodeTool = tool(
 				sseStream.writeSSE({
 					event: "notification",
 					data: JSON.stringify({
-						content: `Manim code execution failed: ${errorMessage}`,
+						content: `Manim code execution failed`,
 						id: Bun.randomUUIDv7(),
 						status: "failed",
 					}),

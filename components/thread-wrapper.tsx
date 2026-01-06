@@ -34,6 +34,13 @@ const codeEventSchema = z.object({
   toolCallId: z.string().optional(),
 });
 
+// Payload for `event: notification` (note: this event uses the SSE event name, not a `type` field)
+const notificationPayloadSchema = z.object({
+  content: z.string().optional(),
+  id: z.string().optional(),
+  status: z.string().optional(),
+});
+
 const textDeltaEventSchema = z.object({
   type: z.literal("text-delta"),
   content: z.string(),
@@ -67,13 +74,6 @@ const doneEventSchema = z.object({
 const errorEventSchema = z.object({
   type: z.literal("error"),
   error: z.string(),
-});
-
-const notificationEventSchema = z.object({
-  type: z.literal("notification"),
-  content: z.string().optional(),
-  id: z.string().optional(),
-  status: z.string().optional(),
 });
 
 // Global state to track streaming code for the code display component
@@ -181,6 +181,29 @@ const MyModelAdapter: ChatModelAdapter = {
           try {
             const rawData = JSON.parse(line.slice(6));
             
+            // Handle `notification` event (shiny "Thinking"-style status in the thread)
+            if (currentEvent === "notification") {
+              const notif = notificationPayloadSchema.safeParse(rawData);
+              if (notif.success) {
+                const content = (notif.data.content || "").trim();
+                if (content.length > 0) {
+                  // Show notifications as shiny text, even if assistant has started
+                  // They'll appear as temporary status messages
+                  yield {
+                    content: [
+                      {
+                        type: "text",
+                        text: `[[shiny]]${content}`,
+                      },
+                    ],
+                  };
+                }
+              } else {
+                console.warn("Invalid notification event data:", notif.error);
+              }
+              continue;
+            }
+
             // Handle `code` event (server emits best-effort parsed code from tool args stream)
             if (currentEvent === "code") {
               const codeResult = codeEventSchema.safeParse(rawData);
@@ -222,6 +245,7 @@ const MyModelAdapter: ChatModelAdapter = {
                 ],
               };
               messageStarted = true;
+              // Once real assistant text starts, stop showing notifications
             }
 
             // Handle tool call arg deltas (for streaming code)
@@ -336,11 +360,6 @@ const MyModelAdapter: ChatModelAdapter = {
               }
             }
 
-            // Handle notifications
-            const notificationResult = notificationEventSchema.safeParse(rawData);
-            if (notificationResult.success) {
-              // Could emit custom events here if needed
-            }
 
             // Handle completion
             const doneResult = doneEventSchema.safeParse(rawData);
@@ -356,6 +375,7 @@ const MyModelAdapter: ChatModelAdapter = {
                   ],
                 };
               }
+              // Clear any lingering notification once the stream completes
             }
 
             // Handle errors
@@ -396,7 +416,7 @@ export function ThreadWrapper() {
               className="gap-2"
               onClick={() => {
                 // Update with your GitHub repository URL
-                window.open("https://github.com/yourusername/manim-agent", "_blank");
+                window.open("https://github.com/gajananpp/manim-agent", "_blank");
               }}
             >
               <Star className="h-4 w-4" />
